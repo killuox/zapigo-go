@@ -106,7 +106,7 @@ func showGoCommand(text string, c echo.Context) error {
 			"type": "section",
 			"text": map[string]interface{}{
 				"type": "mrkdwn",
-				"text": fmt.Sprintf("Here's a list of commands in *%s*.", text),
+				"text": fmt.Sprintf("Here's a list of go commands in *%s*.", text),
 			},
 		})
 		for _, cmd := range matchingUrlName {
@@ -293,7 +293,7 @@ func ListCommand(c echo.Context) error {
 			"type": "section",
 			"text": map[string]interface{}{
 				"type": "mrkdwn",
-				"text": fmt.Sprintf("*%s:*", caser.String(group)),
+				"text": fmt.Sprintf("*%s*", caser.String(group)),
 			},
 		})
 
@@ -305,15 +305,71 @@ func ListCommand(c echo.Context) error {
 		})
 	}
 
-	jsonData, err := json.MarshalIndent(responseBlocks, "", " ")
-	fmt.Println((string(jsonData)))
-
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"blocks": responseBlocks,
 	})
 }
 
 func Interaction(c echo.Context) error {
+	return c.String(http.StatusOK, "ok")
+}
+
+func OnEvent(c echo.Context) error {
+	println("Event received")
+	data := make(map[string]interface{})
+	err := json.NewDecoder(c.Request().Body).Decode(&data)
+	if err != nil {
+		return c.String(http.StatusBadRequest, "Failed to parse request body")
+	}
+
+	eventType := data["type"].(string)
+
+	if eventType == "url_verification" {
+		challenge := data["challenge"].(string)
+		return c.JSON(http.StatusOK, map[string]string{
+			"challenge": challenge,
+		})
+	}
+	return dispatchEvent(data, c)
+}
+
+func dispatchEvent(data map[string]interface{}, c echo.Context) error {
+	println("Dispatching the event")
+	eventType := data["event"].(map[string]interface{})["type"].(string)
+	switch eventType {
+	case "message":
+		return handleMessageEvent(data, c)
+	}
+
+	return nil
+}
+
+func handleMessageEvent(data map[string]interface{}, c echo.Context) error {
+	println("handleMessageEvent")
+	event := data["event"].(map[string]interface{})
+	text := event["text"].(string)
+	arrowChar := "-&gt;"
+	// Check if there is an arrow in the text
+	if strings.Contains(text, arrowChar) {
+		// Split by arrow character to get the part after the arrow
+		parts := strings.Split(text, arrowChar)
+		if len(parts) > 1 {
+			// Split the second part by spaces and get the first word
+			wordAfterArrow := strings.Fields(parts[1])[0]
+			// Check if the word after the arrow is a command
+			command := findUrlName(wordAfterArrow)
+
+			if command != nil {
+				// Return the command URL if found
+				return c.JSON(http.StatusOK, map[string]interface{}{
+					"blocks": linkBlock(command.URL, command.Name),
+				})
+			}
+		} else {
+			fmt.Println("No arrow found in text")
+		}
+	}
+
 	return c.String(http.StatusOK, "ok")
 }
 
