@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/labstack/echo/v4"
+	"github.com/slack-go/slack"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -334,7 +335,6 @@ func OnEvent(c echo.Context) error {
 }
 
 func dispatchEvent(data map[string]interface{}, c echo.Context) error {
-	println("Dispatching the event")
 	eventType := data["event"].(map[string]interface{})["type"].(string)
 	switch eventType {
 	case "message":
@@ -345,9 +345,9 @@ func dispatchEvent(data map[string]interface{}, c echo.Context) error {
 }
 
 func handleMessageEvent(data map[string]interface{}, c echo.Context) error {
-	println("handleMessageEvent")
 	event := data["event"].(map[string]interface{})
 	text := event["text"].(string)
+	channelID := event["channel"].(string)
 	arrowChar := "-&gt;"
 	// Check if there is an arrow in the text
 	if strings.Contains(text, arrowChar) {
@@ -360,10 +360,7 @@ func handleMessageEvent(data map[string]interface{}, c echo.Context) error {
 			command := findUrlName(wordAfterArrow)
 
 			if command != nil {
-				// Return the command URL if found
-				return c.JSON(http.StatusOK, map[string]interface{}{
-					"blocks": linkBlock(command.URL, command.Name),
-				})
+				sendCommandMessage(command, channelID)
 			}
 		} else {
 			fmt.Println("No arrow found in text")
@@ -371,6 +368,20 @@ func handleMessageEvent(data map[string]interface{}, c echo.Context) error {
 	}
 
 	return c.String(http.StatusOK, "ok")
+}
+
+func sendCommandMessage(command *UrlCommand, channelID string) {
+	// Send a message to the user
+	token := os.Getenv("SLACK_BOT_TOKEN")
+
+	api := slack.New(token)
+
+	// Send "hello world" message to the specified channel
+	_, _, err := api.PostMessage(channelID, slack.MsgOptionBlocks(linkBlock(command.URL, command.Name)))
+	if err != nil {
+		fmt.Printf("error sending message: %v\n", err)
+		return
+	}
 }
 
 func getNameAndUrl(c echo.Context) (string, string, error) {
@@ -412,24 +423,14 @@ func validateURL(url string) bool {
 	return true
 }
 
-func linkBlock(url, text string) map[string]interface{} {
+func linkBlock(url, text string) slack.Block {
 	title := cases.Title(language.English)
 	formattedText := title.String(strings.ReplaceAll(text, "-", " "))
-	return map[string]interface{}{
-		"type": "section",
-		"text": map[string]interface{}{
-			"type": "mrkdwn",
-			"text": formattedText,
-		},
-		"accessory": map[string]interface{}{
-			"type": "button",
-			"text": map[string]interface{}{
-				"type":  "plain_text",
-				"text":  "⚡ Go",
-				"emoji": true,
-			},
-			"style": "primary",
-			"url":   url,
-		},
-	}
+	return slack.NewSectionBlock(
+		slack.NewTextBlockObject("mrkdwn", formattedText, false, false),
+		nil,
+		slack.NewAccessory(
+			slack.NewButtonBlockElement("", "", slack.NewTextBlockObject("plain_text", "⚡ Go", true, false)).WithStyle("primary").WithURL(url),
+		),
+	)
 }
