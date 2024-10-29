@@ -1,2 +1,41 @@
-.git
-.env
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Directories
+bin/
+vendor/ # If you use Go Modules, you can ignore vendor (otherwise include it)
+
+# OS-specific files
+.DS_Store        # macOS
+Thumbs.db        # Windows
+ehthumbs.db      # Windows
+*.swp            # Swap files
+
+# Logs and cache
+*.log
+*.tmp
+*.cache
+.idea/           # IDE configurations (if using Goland, for example)
+.vscode/         # Visual Studio Code configuration
+*.vscode-test/   # VSCode testing artifacts
+*.testresults    # Test result logs
+
+# Environment and config files
+.env             # Environment variables file
+.env.local
+.env.*.local
+config.yaml      # Configuration files, if sensitive
+
+# Go-related files
+/go.sum
+/go/pkg/
+
+# Temporary files and coverage reports
+*.cover
+coverage.out
