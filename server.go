@@ -36,6 +36,8 @@ func main() {
 	e.POST("/command/add", slack.AddCommand)
 	e.POST("/command/edit", slack.EditCommand)
 	e.POST("/command/delete", slack.DeleteCommand)
+	e.POST("/command/list", slack.ListCommand)
+	e.POST("/interaction", slack.Interaction)
 	// Start the Echo server and listen on port 1323
 	port := ":1323"
 	if err := e.Start(port); err != nil {

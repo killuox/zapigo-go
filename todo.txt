@@ -1,3 +1,2 @@
-Start slack blocks
 Handle list
 Handle help

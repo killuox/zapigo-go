@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"regexp"
 	"strings"
 
 	"github.com/labstack/echo/v4"
@@ -76,7 +75,6 @@ func GoCommand(c echo.Context) error {
 	if commandErr != nil {
 		return c.String(http.StatusOK, "Please provide a valid command")
 	}
-
 	return showGoCommand(text, c)
 }
 
@@ -103,14 +101,40 @@ func showGoCommand(text string, c echo.Context) error {
 
 	// If partial matches are found return them
 	if len(matchingUrlName) > 0 {
-		// TODO: Add a final block
-		return c.String(http.StatusOK, fmt.Sprintln("Multiple urls found!"))
-
+		var blocks []interface{}
+		blocks = append(blocks, map[string]interface{}{
+			"type": "section",
+			"text": map[string]interface{}{
+				"type": "mrkdwn",
+				"text": fmt.Sprintf("Here's a list of commands in *%s*.", text),
+			},
+		})
+		for _, cmd := range matchingUrlName {
+			blocks = append(blocks, linkBlock(cmd.URL, cmd.Name))
+		}
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"blocks": blocks,
+		})
 	}
-
-	// Return a more descriptive message if no command is found
-	//TODO: Add a final block and sugest to call list command
-	return c.String(http.StatusOK, fmt.Sprintf("No command found with the name '%s'. Please check the name and try again.", text))
+	// if no command is found
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"blocks": []interface{}{
+			map[string]interface{}{
+				"type": "section",
+				"text": map[string]interface{}{
+					"type": "mrkdwn",
+					"text": fmt.Sprintf("No command found with the name '%s'. Please check the name and try again.", text),
+				},
+			},
+			map[string]interface{}{
+				"type": "section",
+				"text": map[string]interface{}{
+					"type": "mrkdwn",
+					"text": "You can use the `/list` command to see all available commands.",
+				},
+			},
+		},
+	})
 }
 
 func AddCommand(c echo.Context) error {
@@ -170,7 +194,7 @@ func EditCommand(c echo.Context) error {
 	urlNameExist := findUrlName(textName)
 
 	if urlNameExist == nil {
-		return c.String(http.StatusOK, fmt.Sprintf("The command name '%s' was not found. Please make sure the name exists or add it first.", textName))
+		return c.String(http.StatusOK, fmt.Sprintf("The command name '%s' was not found. Please make sure the name exists.", textName))
 	}
 
 	// Validate the URL
@@ -193,7 +217,7 @@ func EditCommand(c echo.Context) error {
 		return c.String(http.StatusOK, "Failed to save your command, please try again later")
 	}
 
-	return c.String(http.StatusOK, "Updated Successfully")
+	return c.String(http.StatusOK, fmt.Sprintf("The command '%s' has been updated successfully with the new URL '%s'", textName, textUrl))
 }
 
 func DeleteCommand(c echo.Context) error {
@@ -229,6 +253,70 @@ func DeleteCommand(c echo.Context) error {
 	return c.String(http.StatusOK, "Deleted Successfully")
 }
 
+func ListCommand(c echo.Context) error {
+	command := c.FormValue("command")
+
+	// Validate the command
+	err := validateCommand(command)
+	if err != nil {
+		return c.String(http.StatusOK, err.Error())
+	}
+
+	// List all the commands
+	var commands = make(map[string][]interface{})
+
+	for _, cmd := range urlList {
+		nameParts := strings.Split(cmd.Name, "-")
+
+		if len(nameParts) > 0 {
+			group := nameParts[0]
+			commands[group] = append(commands[group], linkBlock(cmd.URL, cmd.Name))
+		}
+	}
+
+	responseBlocks := []interface{}{
+		map[string]interface{}{
+			"type": "section",
+			"text": map[string]interface{}{
+				"type": "mrkdwn",
+				"text": "*Here's a list of all available commands:*",
+			},
+		},
+		map[string]interface{}{
+			"type": "divider",
+		},
+	}
+	caser := cases.Title(language.English)
+	for group, cmds := range commands {
+		// Show the title
+		responseBlocks = append(responseBlocks, map[string]interface{}{
+			"type": "section",
+			"text": map[string]interface{}{
+				"type": "mrkdwn",
+				"text": fmt.Sprintf("*%s:*", caser.String(group)),
+			},
+		})
+
+		// show the list of go commands
+		responseBlocks = append(responseBlocks, cmds...)
+
+		responseBlocks = append(responseBlocks, map[string]interface{}{
+			"type": "divider",
+		})
+	}
+
+	jsonData, err := json.MarshalIndent(responseBlocks, "", " ")
+	fmt.Println((string(jsonData)))
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"blocks": responseBlocks,
+	})
+}
+
+func Interaction(c echo.Context) error {
+	return c.String(http.StatusOK, "ok")
+}
+
 func getNameAndUrl(c echo.Context) (string, string, error) {
 	// Text should look like this: meet https://meet.google.com
 	text := c.FormValue("text")
@@ -261,30 +349,31 @@ func validateURL(url string) bool {
 	if len(url) < 6 {
 		return false
 	}
-
-	// Regular expression for URLs starting with http, https, or www
-	re := regexp.MustCompile(`^(https?://|www\.)`)
-	return re.MatchString(url)
+	// Must start with http, https
+	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+		return false
+	}
+	return true
 }
 
 func linkBlock(url, text string) map[string]interface{} {
 	title := cases.Title(language.English)
+	formattedText := title.String(strings.ReplaceAll(text, "-", " "))
 	return map[string]interface{}{
 		"type": "section",
 		"text": map[string]interface{}{
 			"type": "mrkdwn",
-			"text": title.String(text),
+			"text": formattedText,
 		},
 		"accessory": map[string]interface{}{
 			"type": "button",
 			"text": map[string]interface{}{
 				"type":  "plain_text",
-				"text":  "Go",
+				"text":  "⚡ Go",
 				"emoji": true,
 			},
-			"value":     "go-link",
-			"url":       "https://echo.labstack.com/docs/middleware/cors#usage-1",
-			"action_id": "button-action",
+			"style": "primary",
+			"url":   url,
 		},
 	}
 }
