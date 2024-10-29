@@ -39,8 +39,8 @@ func main() {
 	e.POST("/command/list", slack.ListCommand)
 	e.POST("/interaction", slack.Interaction)
 	e.POST("/event", slack.OnEvent)
-	// Start the Echo server and listen on port 1323
-	port := ":1323"
+	// Start the Echo server and listen on port 8080
+	port := ":8080"
 	if err := e.Start(port); err != nil {
 		e.Logger.Fatal("Shutting down the server due to:", err)
 	}
