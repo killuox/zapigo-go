@@ -348,7 +348,7 @@ func handleMessageEvent(data map[string]interface{}, c echo.Context) error {
 	event := data["event"].(map[string]interface{})
 	text := event["text"].(string)
 	channelID := event["channel"].(string)
-	triggerChar := "-*"
+	triggerChar := "-&ast;"
 	// Check if there is an arrow in the text
 	if strings.Contains(text, triggerChar) {
 		// Split by arrow character to get the part after the arrow
