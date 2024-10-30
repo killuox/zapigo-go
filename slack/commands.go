@@ -348,11 +348,11 @@ func handleMessageEvent(data map[string]interface{}, c echo.Context) error {
 	event := data["event"].(map[string]interface{})
 	text := event["text"].(string)
 	channelID := event["channel"].(string)
-	arrowChar := "-&gt;"
+	triggerChar := "&gt;&gt;"
 	// Check if there is an arrow in the text
-	if strings.Contains(text, arrowChar) {
+	if strings.Contains(text, triggerChar) {
 		// Split by arrow character to get the part after the arrow
-		parts := strings.Split(text, arrowChar)
+		parts := strings.Split(text, triggerChar)
 		if len(parts) > 1 {
 			// Split the second part by spaces and get the first word
 			wordAfterArrow := strings.Fields(parts[1])[0]
