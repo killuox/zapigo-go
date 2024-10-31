@@ -47,7 +47,7 @@ func showGoCommand(text string, c echo.Context) error {
 		// Return the command URL if found
 		return c.JSON(http.StatusOK, map[string]interface{}{
 			"blocks": []interface{}{
-				linkBlock(command.Url, command.Name),
+				linkBlock(command.Url, command.Name, false),
 			},
 		})
 	}
@@ -72,7 +72,7 @@ func showGoCommand(text string, c echo.Context) error {
 			},
 		})
 		for _, cmd := range matchingUrlName {
-			blocks = append(blocks, linkBlock(cmd.Url, cmd.Name))
+			blocks = append(blocks, linkBlock(cmd.Url, cmd.Name, false))
 		}
 		return c.JSON(http.StatusOK, map[string]interface{}{
 			"blocks": blocks,
@@ -215,14 +215,14 @@ func ListCommand(c echo.Context) error {
 		nameParts := strings.Split(cmd.Name, "-")
 		if len(nameParts) > 1 {
 			group := nameParts[0]
-			commands[group] = append(commands[group], linkBlock(cmd.Url, cmd.Name))
+			commands[group] = append(commands[group], linkBlock(cmd.Url, cmd.Name, true))
 		} else {
 			//!HACK for now slack bug with shortned urls
 			if cmd.Name == "meet" {
 				continue
 			}
 			// place in others group
-			commands["others"] = append(commands["others"], linkBlock(cmd.Url, cmd.Name))
+			commands["others"] = append(commands["others"], linkBlock(cmd.Url, cmd.Name, true))
 		}
 	}
 
@@ -378,9 +378,13 @@ func validateURL(url string) bool {
 	return true
 }
 
-func linkBlock(url, text string) slack.Block {
+func linkBlock(url, text string, withSlug bool) slack.Block {
 	title := cases.Title(language.English)
 	formattedText := title.String(strings.ReplaceAll(text, "-", " "))
+	if withSlug {
+		// append the original text to the formattedText in ()
+		formattedText += fmt.Sprintf(" (%s)", text)
+	}
 	return slack.NewSectionBlock(
 		slack.NewTextBlockObject("mrkdwn", formattedText, false, false),
 		nil,
