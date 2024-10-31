@@ -217,6 +217,10 @@ func ListCommand(c echo.Context) error {
 			group := nameParts[0]
 			commands[group] = append(commands[group], linkBlock(cmd.Url, cmd.Name))
 		} else {
+			//!HACK for now slack bug with shortned urls
+			if cmd.Name == "meet" {
+				continue
+			}
 			// place in others group
 			commands["others"] = append(commands["others"], linkBlock(cmd.Url, cmd.Name))
 		}
