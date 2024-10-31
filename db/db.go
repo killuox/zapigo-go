@@ -34,24 +34,44 @@ func CreateTable() error {
 
 // Insert a new record into the database
 func Insert(name, url string) error {
+	// Check if the db is connected
+	if db == nil || db.IsClosed() {
+		Connect()
+	}
+
 	_, err := db.Exec(context.Background(), "INSERT INTO url (name, url) VALUES ($1, $2)", name, url)
 	return err
 }
 
 // Update a record in the database
 func Update(name, url string) error {
+	// Check if the db is connected
+	if db == nil || db.IsClosed() {
+		Connect()
+	}
+
 	_, err := db.Exec(context.Background(), "UPDATE url SET url = $2 WHERE name = $1", name, url)
 	return err
 }
 
 // Delete a record from the database
 func Delete(name string) error {
+	// Check if the db is connected
+	if db == nil || db.IsClosed() {
+		Connect()
+	}
+
 	_, err := db.Exec(context.Background(), "DELETE FROM url WHERE name = $1", name)
 	return err
 }
 
 // List all records from the database
 func List() (map[string]Url, error) {
+	// Check if the db is connected
+	if db == nil || db.IsClosed() {
+		Connect()
+	}
+
 	rows, err := db.Query(context.Background(), "SELECT name, url FROM url")
 	if err != nil {
 		return nil, err
