@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"log"
 	"os"
 
 	"github.com/jackc/pgx/v5"
@@ -54,6 +55,7 @@ func Delete(name string) error {
 func List() (map[string]Url, error) {
 	rows, err := db.Query(context.Background(), "SELECT name, url FROM url")
 	if err != nil {
+		log.Fatal(err)
 		return nil, err
 	}
 	defer rows.Close()
