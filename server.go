@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/Killuox/zapigo-go/db"
 	"github.com/Killuox/zapigo-go/slack"
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
@@ -24,10 +25,16 @@ func main() {
 		return c.String(http.StatusOK, "Welcome to zapigo!")
 	})
 
-	// Load the commands from the file
-	if err := slack.LoadUrlNames(); err != nil {
-		log.Fatalf("Failed to load commands: %v", err)
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
 	}
+	con, err := db.Connect()
+	if err != nil {
+		log.Fatal("Error connecting to the database")
+	}
+	db.CreateTable()
+	defer db.Close(con)
 
 	e.POST("/command/go", slack.GoCommand)
 	e.POST("/command/add", slack.AddCommand)
@@ -36,6 +43,7 @@ func main() {
 	e.POST("/command/list", slack.ListCommand)
 	e.POST("/interaction", slack.Interaction)
 	e.POST("/event", slack.OnEvent)
+
 	// Start the Echo server and listen on port 8080
 	port := ":8080"
 	if err := e.Start(port); err != nil {

@@ -7,51 +7,12 @@ import (
 	"os"
 	"strings"
 
+	"github.com/Killuox/zapigo-go/db"
 	"github.com/labstack/echo/v4"
 	"github.com/slack-go/slack"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
-
-const commandFile = "./slack/commands.json"
-
-// LoadCommands loads the commands from a JSON file
-func LoadUrlNames() error {
-	file, err := os.Open(commandFile)
-	if err != nil {
-		if os.IsNotExist(err) {
-			// If the file does not exist, return without error
-			return nil
-		}
-		return err
-	}
-	defer file.Close()
-
-	decoder := json.NewDecoder(file)
-	if err := decoder.Decode(&urlList); err != nil {
-		return err
-	}
-	return nil
-}
-
-// SaveCommands saves the commands to a JSON file
-func saveUrlCommand() error {
-	file, err := os.Create(commandFile)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	encoder := json.NewEncoder(file)
-	return encoder.Encode(urlList)
-}
-
-type UrlCommand struct {
-	Name string `json:"name"`
-	URL  string `json:"url"`
-}
-
-var urlList []UrlCommand
 
 // ValidateCommand validates the command text received from Slack.
 func validateCommand(command string) error {
@@ -86,14 +47,14 @@ func showGoCommand(text string, c echo.Context) error {
 		// Return the command URL if found
 		return c.JSON(http.StatusOK, map[string]interface{}{
 			"blocks": []interface{}{
-				linkBlock(command.URL, command.Name),
+				linkBlock(command.Url, command.Name),
 			},
 		})
 	}
-
+	urls, _ := db.List()
 	// Look for partial matches in command names
-	var matchingUrlName []UrlCommand
-	for _, cmd := range urlList {
+	var matchingUrlName []db.Url
+	for _, cmd := range urls {
 		nameParts := strings.Split(cmd.Name, "-")
 		if len(nameParts) > 0 && nameParts[0] == text {
 			matchingUrlName = append(matchingUrlName, cmd)
@@ -111,11 +72,12 @@ func showGoCommand(text string, c echo.Context) error {
 			},
 		})
 		for _, cmd := range matchingUrlName {
-			blocks = append(blocks, linkBlock(cmd.URL, cmd.Name))
+			blocks = append(blocks, linkBlock(cmd.Url, cmd.Name))
 		}
 		return c.JSON(http.StatusOK, map[string]interface{}{
 			"blocks": blocks,
 		})
+
 	}
 	// if no command is found
 	return c.JSON(http.StatusOK, map[string]interface{}{
@@ -166,12 +128,11 @@ func AddCommand(c echo.Context) error {
 		return c.String(http.StatusOK, "Url is not valid")
 	}
 
-	// Add the textName + textURL to the list of commands in a folder
-	urlList = append(urlList, UrlCommand{Name: textName, URL: textUrl})
+	// Add the url command
+	err = db.Insert(textName, textUrl)
 
-	// Save the commands to the file
-	if err := saveUrlCommand(); err != nil {
-		return c.String(http.StatusOK, "Failed to save your command, please try again later")
+	if err != nil {
+		return c.String(http.StatusOK, "Error adding the command")
 	}
 
 	return c.String(http.StatusOK, fmt.Sprintf("%s added with URL %s", textName, textUrl))
@@ -206,17 +167,7 @@ func EditCommand(c echo.Context) error {
 	}
 
 	// Edit the url command
-	for i := range urlList {
-		if urlList[i].Name == textName {
-			urlList[i].URL = textUrl
-			break
-		}
-	}
-
-	// Save the commands to the file
-	if err := saveUrlCommand(); err != nil {
-		return c.String(http.StatusOK, "Failed to save your command, please try again later")
-	}
+	db.Update(textName, textUrl)
 
 	return c.String(http.StatusOK, fmt.Sprintf("The command '%s' has been updated successfully with the new URL '%s'", textName, textUrl))
 }
@@ -239,17 +190,7 @@ func DeleteCommand(c echo.Context) error {
 	}
 
 	// Delete the url command
-	for i := range urlList {
-		if urlList[i].Name == textName {
-			urlList = append(urlList[:i], urlList[i+1:]...)
-			break
-		}
-	}
-
-	// Save the commands to the file
-	if err := saveUrlCommand(); err != nil {
-		return c.String(http.StatusOK, "Failed to save your command, please try again later")
-	}
+	db.Delete(textName)
 
 	return c.String(http.StatusOK, "Deleted Successfully")
 }
@@ -265,13 +206,19 @@ func ListCommand(c echo.Context) error {
 
 	// List all the commands
 	var commands = make(map[string][]interface{})
+	urlList, _ := db.List()
+	if len(urlList) == 0 {
+		return c.String(http.StatusOK, "No commands found yet")
+	}
 
 	for _, cmd := range urlList {
 		nameParts := strings.Split(cmd.Name, "-")
-
-		if len(nameParts) > 0 {
+		if len(nameParts) > 1 {
 			group := nameParts[0]
-			commands[group] = append(commands[group], linkBlock(cmd.URL, cmd.Name))
+			commands[group] = append(commands[group], linkBlock(cmd.Url, cmd.Name))
+		} else {
+			// place in others group
+			commands["others"] = append(commands["others"], linkBlock(cmd.Url, cmd.Name))
 		}
 	}
 
@@ -348,7 +295,7 @@ func handleMessageEvent(data map[string]interface{}, c echo.Context) error {
 	event := data["event"].(map[string]interface{})
 	text := event["text"].(string)
 	channelID := event["channel"].(string)
-	triggerChar := "-&ast;"
+	triggerChar := "-&gt;"
 	// Check if there is an arrow in the text
 	if strings.Contains(text, triggerChar) {
 		// Split by arrow character to get the part after the arrow
@@ -358,7 +305,7 @@ func handleMessageEvent(data map[string]interface{}, c echo.Context) error {
 			wordAfterArrow := strings.Fields(parts[1])[0]
 			// Check if the word after the arrow is a command
 			command := findUrlName(wordAfterArrow)
-
+			fmt.Println("Command found:", command)
 			if command != nil {
 				sendCommandMessage(command, channelID)
 			}
@@ -370,14 +317,14 @@ func handleMessageEvent(data map[string]interface{}, c echo.Context) error {
 	return c.String(http.StatusOK, "ok")
 }
 
-func sendCommandMessage(command *UrlCommand, channelID string) {
+func sendCommandMessage(command *db.Url, channelID string) {
 	// Send a message to the user
 	token := os.Getenv("SLACK_BOT_TOKEN")
 
 	api := slack.New(token)
 
 	// Send "hello world" message to the specified channel
-	_, _, err := api.PostMessage(channelID, slack.MsgOptionBlocks(linkBlock(command.URL, command.Name)))
+	_, _, err := api.PostMessage(channelID, slack.MsgOptionBlocks(linkBlock(command.Url, command.Name)))
 	if err != nil {
 		fmt.Printf("error sending message: %v\n", err)
 		return
@@ -401,10 +348,14 @@ func getNameAndUrl(c echo.Context) (string, string, error) {
 	return textName, textURL, nil
 }
 
-func findUrlName(name string) *UrlCommand {
-	for _, command := range urlList {
-		if command.Name == name {
-			return &command
+func findUrlName(name string) *db.Url {
+	list, err := db.List()
+	if err != nil {
+		return nil
+	}
+	for _, cmd := range list {
+		if cmd.Name == name {
+			return &cmd
 		}
 	}
 	return nil
