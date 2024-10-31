@@ -24,11 +24,6 @@ func main() {
 	e.GET("/", func(c echo.Context) error {
 		return c.String(http.StatusOK, "Welcome to zapigo!")
 	})
-
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
 	con, err := db.Connect()
 	if err != nil {
 		log.Fatal("Error connecting to the database")
