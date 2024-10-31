@@ -328,7 +328,7 @@ func sendCommandMessage(command *db.Url, channelID string) {
 	api := slack.New(token)
 
 	// Send "hello world" message to the specified channel
-	_, _, err := api.PostMessage(channelID, slack.MsgOptionBlocks(linkBlock(command.Url, command.Name)))
+	_, _, err := api.PostMessage(channelID, slack.MsgOptionBlocks(linkBlock(command.Url, command.Name, false)))
 	if err != nil {
 		fmt.Printf("error sending message: %v\n", err)
 		return
